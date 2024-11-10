@@ -1,0 +1,200 @@
+---
+title: "JohnYe_HW4"
+author: "John Ye"
+date: "2024-09-28"
+output: word_document
+---
+## 1. Loading the Lahman library
+```{r}
+library(Lahman)
+library(dplyr)
+#glimpse(Batting)
+#glimpse(Teams)
+#glimpse(Salaries)
+#glimpse(Managers)
+```
+
+## 1.a Using left join to display the playerID, yearID, teamID, stint, G, HR, and salary for all players who hit more than 30 home runs in a single season and played for a team in New York between 2010 and 2020.
+```{r}
+result <- Batting %>%
+  filter(HR > 30, yearID >= 2010, yearID <= 2020) %>%
+  left_join(Salaries, by = c("playerID", "yearID", "teamID")) %>%
+  filter((teamID == "NYA" | teamID == "NYN")) %>%
+  select(playerID, yearID, teamID, stint, G, HR, salary)
+
+print(result)
+playerCount <- nrow(result)
+cat("There are", playerCount, "players match these criteria.")
+```
+## 1.b What is the difference between the following two joins?
+```{r}
+# anti_join(Salaries, Batting, by = c("playerID" = "playerID")) 
+# anti_join(Batting, Salaries, by = c("playerID" = "playerID"))
+```
+* anti_join(x,y) drops all observations in x that have a match in y. For the first case, the result will show all players that are in Salaries table but not appear in the Batting table. For the second case, it will be opposite. The result will show all players that are in Batting table but not appear in the Salaries table.
+
+## What is the difference between semi_join and anti_join? Provide an example using the Salaries and Batting tables.
+* semi_join(x,y) keeps all observations in x that have a match in y. anti_join(x,y) drops all observations in x that have a match in y.
+```{r}
+semi <- semi_join(Salaries, Batting, by = c("playerID" = "playerID"))
+head(semi)
+anti<- anti_join(Salaries, Batting, by = c("playerID" = "playerID"))
+print(anti)
+```
+* In the example I used above, the semi_join function will return all players who are appear in both Salaries and Batting tables. The anti_join will return all players who are in the Salaries tables but not appear in the Batting table, where in this case, it seems like there is no player only appear in the Salaries table but not in the Batting table. The result of anti_join is empty.
+
+## 1.c Select the teamID, yearID, and the RBI for each team in the AL for the year 2015 (using one or more inner joins with the Teams and Batting tables). 
+```{r}
+ALTeam2015 <- Teams %>%
+  filter(lgID == "AL", yearID == 2015)
+
+AL2015 <- ALTeam2015 %>%
+  inner_join(Batting, by = c("teamID", "yearID")) %>%
+  group_by(teamID, yearID) %>%
+  summarise(RBICount = sum(RBI, na.rm = TRUE))
+print(AL2015)
+```
+## How many total home runs were hit by AL teams in 2015?
+```{r}
+## This gives me an error says couldn't find HR, I am not sure how to fix that.
+#ALTeamHR <- ALTeam2015 %>%
+# inner_join(Batting, by = c("teamID", "yearID")) %>%
+# summarise(HRCount = sum(HR, na.rm = TRUE)) %>%
+# print(ALTeamHR)
+```
+
+## 1.d Using the Managers and Teams tables, determine the number of seasons each manager managed a team. Use group_by and count to get the number of unique managerID and teamID combinations.
+```{r}
+library(Lahman)
+library(dplyr)
+managerSeasons <- Managers %>%
+  group_by(playerID, teamID) %>%
+  summarise(seasons = n_distinct(yearID), .groups = 'drop')
+head(managerSeasons)
+## How many unique combinations of the managerID and teamID are present?
+combinations <- nrow(managerSeasons)
+cat("Number of unique combinations of the managerID and teamID: ", combinations,"\n")
+
+## Are there any players with unusually high number of years as a manager?
+unusuallyPlayer <- managerSeasons %>%
+  arrange(desc(seasons))
+head(unusuallyPlayer)
+highestNumberPlayer <- unusuallyPlayer$playerID[1]
+cat("The player with the highest number of years as a manager is: ", highestNumberPlayer)
+```
+## 1.e Using the template as a start, produce a horizontal bar plot that shows the number of wins for the top 10 team in 2019. 
+```{r}
+library(ggplot2)
+# Template
+#Teams %>%
+#  filter(yearID == 2019) %>%
+#  select(teamID, W) %>%
+#  ggplot(aes(x = reorder(teamID, W), y = W)) + 
+#    geom_bar(stat = "identity", fill = "steelblue") + 
+#    coord_flip()
+
+Top10Teams2019 <- Teams %>%
+  filter(yearID == 2019) %>%
+  select(teamID, W) %>%
+  arrange(desc(W)) %>%
+  top_n(10, W)
+
+ggplot(Top10Teams2019, aes(x = reorder(teamID, W), y = W)) + 
+  geom_bar(stat = "identity", fill = "steelblue") + 
+  coord_flip() + 
+  labs(x = "Teams", y = "Number of Wins", title = "Number of Wins of the Top 10 Teams in 2019")
+```
+## 2. Read us-presidents.csv
+```{r}
+library(dplyr)
+library(ggplot2)
+library(maps)
+USPresident_data <- read.csv("us-presidents.csv", header = TRUE)
+head(USPresident_data)
+```
+## Create two visualizations of the US map showing the state/territories and the number of the presidential votes received during two election year.
+```{r}
+USMap <- map_data("state")
+# Visualization of the states for year 1980
+Map1980 <- USPresident_data %>%
+  filter(year == 1980) %>%
+  mutate(region = tolower(state))
+
+Vote1980 <- merge(USMap, Map1980, by = "region")
+
+ggplot() + 
+  geom_polygon(data = Vote1980, aes(x = long, y = lat, group = group, fill = totalvotes), color = "white") + 
+  labs(x = "Longitude", y = "Latitude", title = "Presidential Votes For Each State in 1980") + 
+  scale_fill_continuous(low = "darkorange", high = "darkorange4")
+
+# Visualization of the states for year 2020
+Map2020 <- USPresident_data %>%
+  filter(year == 2020) %>%
+  mutate(region = tolower(state))
+
+Vote2020 <- merge(USMap, Map2020, by = "region")
+
+ggplot() + 
+  geom_polygon(data = Vote2020, aes(x = long, y = lat, group = group, fill = totalvotes), color = "white") + 
+  labs(x = "Longitude", y = "Latitude", title = "Presidential Votes For Each State in 2020") + 
+  scale_fill_continuous(low = "darkorange", high = "darkorange4")
+```
+## Analysis
+* The two graph I had is the presidential votes in 1980 and in 2020, I am interested about how votes pattern changed during the last 40 years.
+* Based on the graphs I had, we can see that during the last 40 year, although the number of the total votes increased, the main pattern did not change too much. California, Texas, and Florida still have the most votes. Votes ratio at Michigan, Illinois, Ohio, Pennsylvania, and New York are decreased, and the ratio at Arizona, Colorado, Georgia and North Carolina are increased. Other states are remains the same vote ration for the past 40 years.
+
+## 3. Create a word cloud for a document.
+```{r}
+library(wordcloud)
+library(tm)
+library(readtext)
+# The document I used for this problem is called "YouTube Video Recommend Algorithm.docx". It is a project report I and three other classmate did for one of the undergraduate course few years ago.
+doc <- readtext("YouTube Video Recommend Algorithm.docx")
+head(doc)
+# create a vector containing only text
+text <- doc$text
+# create a corpus
+corpus <- Corpus(VectorSource(text))
+
+corpus <- corpus %>%
+  tm_map(removeNumbers) %>%
+  tm_map(removePunctuation) %>%
+  tm_map(stripWhitespace)
+
+corpus <- tm_map(corpus, content_transformer(tolower))
+corpus <- tm_map(corpus, removeWords, stopwords("english"))
+
+# create a document-term-matrix
+dtm <- TermDocumentMatrix(corpus)
+matrix <- as.matrix(dtm)
+words <- sort(rowSums(matrix), decreasing = TRUE)
+df <- data.frame(word = names(words), freq = words)
+
+wordcloud(words = df$word, freq = df$freq, min.freq = 1, max.words=200, random.order=FALSE, rot.per=0.35, colors=brewer.pal(8, "Dark2"))
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
